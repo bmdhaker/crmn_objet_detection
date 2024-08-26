@@ -25,7 +25,7 @@ DEFAULT_DETECT_IMAGE = IMAGES_DIR / 'office_4_detected.jpg'
 # Videos config
 VIDEO_DIR = ROOT / 'videos'
 VIDEOS_DICT = {
-    'test': VIDEO_DIR / 'TEST1.MOV',
+    'test': VIDEO_DIR / 'TEST1.mov',
     'video_0': VIDEO_DIR / 'video.MOV',
     'video_3': VIDEO_DIR / 'videoplayback.mp4',
     'video_4': VIDEO_DIR / 'plongeur.mp4',
