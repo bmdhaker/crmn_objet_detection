@@ -31,7 +31,7 @@ def load_modelFASTER():
     model = models.detection.fasterrcnn_resnet50_fpn(pretrained=False)
     # Adapter le modèle au nombre de classes de votre modèle sauvegardé
     model = modify_model(model, num_classes=9)  # Nombre de classes dans votre modèle sauvegardé
-    model_path = '/Users/macbook/Desktop/STAGE PFE/CRMN_INTERFACE/weights/FRCNN-V0-5epochs.pth'
+    model_path = 'weights/FRCNN-V0-5epochs.pth'
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
     model.eval()
     return model
@@ -167,73 +167,80 @@ def play_stored_video(conf, model, typeModel):
     if selected_video:
         video_path = str(VIDEOS_DICT[selected_video])
 
+        # Vérifier que le fichier vidéo existe
+        if not os.path.isfile(video_path):
+            st.error(f"Le fichier vidéo n'existe pas à l'emplacement : {video_path}")
+            return
+
         # Afficher la vidéo sélectionnée
-        st.video(video_path)
+        try:
+            st.video(video_path)
 
-        # Ajouter un bouton pour lancer la détection des objets
-        if st.button('Détecter les objets'):
-            if not video_path:
-                st.error("SVP, Sélectionnez une vidéo")
-                return
-
-            try:
-                st.info(f"Ouverture du fichier : {video_path}")
-                vid_cap = cv2.VideoCapture(video_path)
-
-                if not vid_cap.isOpened():
-                    st.error("Échec de l'ouverture du fichier, veuillez essayer une autre vidéo.")
+            # Ajouter un bouton pour lancer la détection des objets
+            if st.button('Détecter les objets'):
+                if not video_path:
+                    st.error("SVP, Sélectionnez une vidéo")
                     return
 
-                st.success("Fichier vidéo ouvert avec succès!")
+                try:
+                    st.info(f"Ouverture du fichier : {video_path}")
+                    vid_cap = cv2.VideoCapture(video_path)
 
-                # Créer le répertoire de sortie si nécessaire
-                output_directory = './processed_videos'
-                os.makedirs(output_directory, exist_ok=True)
+                    if not vid_cap.isOpened():
+                        st.error("Échec de l'ouverture du fichier, veuillez essayer une autre vidéo.")
+                        return
 
-                # Créer un nom de fichier unique avec horodatage
-                current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                test_output_path = os.path.join(output_directory, f'test_output_{current_time}.mp4')
-                
-                # Définir les paramètres du writer vidéo
-                fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-                frame_width = 720
-                frame_height = 405
-                out = cv2.VideoWriter(test_output_path, fourcc, 20.0, (frame_width, frame_height))
+                    st.success("Fichier vidéo ouvert avec succès!")
 
-                if not out.isOpened():
-                    st.error("ERREUR D'ECRITURE.")
-                    vid_cap.release()
-                    return
+                    # Créer le répertoire de sortie si nécessaire
+                    output_directory = './processed_videos'
+                    os.makedirs(output_directory, exist_ok=True)
 
-                st_frame = st.empty()
-                while vid_cap.isOpened():
-                    success, image = vid_cap.read()
-                    if success:
-                        if typeModel == "YOLOv8" or typeModel == "YOLOv9":
-                            res_plotted = _display_detected_frames(conf, model, st_frame, image)
-                        elif typeModel == "Faster R-CNN":
-                            res_plotted = process_and_display_frame(conf, model, st_frame, image)
+                    # Créer un nom de fichier unique avec horodatage
+                    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                    test_output_path = os.path.join(output_directory, f'test_output_{current_time}.mp4')
+                    
+                    # Définir les paramètres du writer vidéo
+                    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+                    frame_width = 720
+                    frame_height = 405
+                    out = cv2.VideoWriter(test_output_path, fourcc, 20.0, (frame_width, frame_height))
 
-                        if res_plotted is None:
-                            continue
+                    if not out.isOpened():
+                        st.error("ERREUR D'ECRITURE.")
+                        vid_cap.release()
+                        return
 
-                        if isinstance(res_plotted, np.ndarray):
-                            if res_plotted.shape[0] != frame_height or res_plotted.shape[1] != frame_width:
+                    st_frame = st.empty()
+                    while vid_cap.isOpened():
+                        success, image = vid_cap.read()
+                        if success:
+                            if typeModel == "YOLOv8" or typeModel == "YOLOv9":
+                                res_plotted = _display_detected_frames(conf, model, st_frame, image)
+                            elif typeModel == "Faster R-CNN":
+                                res_plotted = process_and_display_frame(conf, model, st_frame, image)
+
+                            if res_plotted is None:
                                 continue
-                            out.write(res_plotted)
-                    else:
-                        break
 
-                vid_cap.release()
-                out.release()
-                st.success("La vidéo a été traitée et enregistrée avec succès.")
+                            if isinstance(res_plotted, np.ndarray):
+                                if res_plotted.shape[0] != frame_height or res_plotted.shape[1] != frame_width:
+                                    continue
+                                out.write(res_plotted)
+                        else:
+                            break
 
-                # Afficher la vidéo traitée
-                #st.video(test_output_path)
-
-            except Exception as e:
-                st.error(f"Une erreur s'est produite: {str(e)}")
-                if 'vid_cap' in locals():
                     vid_cap.release()
-                if 'out' in locals():
                     out.release()
+                    st.success("La vidéo a été traitée et enregistrée avec succès.")
+
+                except Exception as e:
+                    st.error(f"Une erreur s'est produite: {str(e)}")
+                    if 'vid_cap' in locals():
+                        vid_cap.release()
+                    if 'out' in locals():
+                        out.release()
+
+        except Exception as e:
+            st.error(f"Une erreur s'est produite lors du chargement de la vidéo : {str(e)}")
+
