@@ -140,26 +140,90 @@ def _display_detected_frames(conf, model, st_frame, image, is_display_tracking=N
 
     return res_plotted
 
-
-
-def play_stored_video1(conf, model, typeModel):
-    source_vid = st.sidebar.selectbox("Choisir une vidéo...", settings.VIDEOS_DICT.keys())
-
-    with open(settings.VIDEOS_DICT.get(source_vid), 'rb') as video_file:
-        video_bytes = video_file.read()
-    if video_bytes:
-        st.video(video_bytes)
-
-    if st.sidebar.button('Détectez la vidéo'):
-      
-            vid_cap = cv2.VideoCapture(str(settings.VIDEOS_DICT.get(source_vid)))
-            st_frame = st.empty()
-
-  
-
  
 
 def play_stored_video(conf, model, typeModel):
+
+ 
+    uploaded_file = st.file_uploader("Téléversez votre vidéo", type=["mp4", "mov", "avi", "mkv", "MOV"])
+    
+    if uploaded_file is not None:
+        # Sauvegarder le fichier téléversé dans un emplacement temporaire
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        temp_file.write(uploaded_file.read())
+        temp_file_path = temp_file.name
+        temp_file.close()
+        
+        st.video(temp_file_path)
+
+        if st.button('Détecter les objets'):
+            try:
+                st.info(f"Ouverture du fichier : {temp_file_path}")
+
+                if not os.path.exists(temp_file_path):
+                    st.error("Le fichier temporaire n'existe pas. Veuillez réessayer.")
+                    return
+
+                vid_cap = cv2.VideoCapture(temp_file_path)
+
+                if not vid_cap.isOpened():
+                    st.error("Échec de l'ouverture du fichier, veuillez essayer une autre vidéo.")
+                    return
+
+                st.success("Fichier vidéo ouvert avec succès!")
+
+                output_directory = './processed_videos'
+                os.makedirs(output_directory, exist_ok=True)
+
+                current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                test_output_path = os.path.join(output_directory, f'test_output_{current_time}.mp4')
+                
+                fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+                frame_width = 720
+                frame_height = 405
+                out = cv2.VideoWriter(test_output_path, fourcc, 20.0, (frame_width, frame_height))
+
+                if not out.isOpened():
+                    st.error("ERREUR D'ECRITURE.")
+                    vid_cap.release()
+                    return
+
+                st_frame = st.empty()
+                while vid_cap.isOpened():
+                    success, image = vid_cap.read()
+                    if success:
+                        if typeModel == "YOLOv8" or typeModel == "YOLOv9":
+                            res_plotted = _display_detected_frames(conf, model, st_frame, image)
+                        elif typeModel == "Faster R-CNN":
+                            res_plotted = process_and_display_frame(conf, model, st_frame, image)
+
+                        if res_plotted is None:
+                            continue
+
+                        if isinstance(res_plotted, np.ndarray):
+                            if res_plotted.shape[0] != frame_height or res_plotted.shape[1] != frame_width:
+                                continue
+                            out.write(res_plotted)
+                    else:
+                        break
+
+                vid_cap.release()
+                out.release()
+                st.success("La vidéo a été traitée et enregistrée avec succès.")
+
+            except Exception as e:
+                st.error(f"Une erreur s'est produite: {str(e)}")
+                if 'vid_cap' in locals():
+                    vid_cap.release()
+                if 'out' in locals():
+                    out.release()
+    else:
+        st.warning("Veuillez téléverser une vidéo pour commencer la détection.")
+
+
+ 
+
+def play_stored_video1(conf, model, typeModel):
     # Créer une liste déroulante pour sélectionner la vidéo
     video_options = list(VIDEOS_DICT.keys())
     selected_video = st.selectbox("Choisissez une vidéo", video_options)
@@ -234,6 +298,8 @@ def play_stored_video(conf, model, typeModel):
                     out.release()
                     st.success("La vidéo a été traitée et enregistrée avec succès.")
 
+
+
                 except Exception as e:
                     st.error(f"Une erreur s'est produite: {str(e)}")
                     if 'vid_cap' in locals():
@@ -243,4 +309,3 @@ def play_stored_video(conf, model, typeModel):
 
         except Exception as e:
             st.error(f"Une erreur s'est produite lors du chargement de la vidéo : {str(e)}")
-
